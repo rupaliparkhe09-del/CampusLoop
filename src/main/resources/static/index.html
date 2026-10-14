@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampusLoop | Student Marketplace</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f7fb;color:#172033}
+header{background:#111b32;color:white;padding:20px 6%;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.logo{font-size:25px;font-weight:bold;color:#65e2bd}
+.hero{padding:45px 6%;background:linear-gradient(120deg,#17233f,#356c91);color:white}
+.hero h1{font-size:36px;margin:0 0 12px}
+.hero p{color:#e1eafa;line-height:1.6}
+main{padding:28px 6%}
+input,select,button{padding:12px;border:1px solid #d6dce7;border-radius:9px;font-size:15px}
+button{background:#087f68;color:white;border:0;font-weight:bold;cursor:pointer}
+.controls{display:flex;gap:10px;margin:20px 0}
+.controls input{flex:1;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px}
+.card{background:white;border-radius:16px;padding:20px;box-shadow:0 5px 22px #15233b0d}
+.icon{font-size:42px;background:#e7f6f1;padding:18px;text-align:center;border-radius:12px}
+.price{font-size:23px;color:#087f68;font-weight:bold}
+.tag{font-size:12px;background:#e1f6ed;padding:6px 9px;border-radius:20px}
+form{display:grid;gap:12px}
+.status{color:#087f68;font-weight:bold}
+footer{background:#111b32;color:white;text-align:center;padding:25px;margin-top:35px}
+@media(max-width:500px){.hero h1{font-size:29px}.controls{flex-direction:column}}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">CampusLoop 🎓</div>
+<div>Student Marketplace · Campus Community</div>
+</header>
+
+<section class="hero">
+<h1>Campus life. Smarter shopping.</h1>
+<p>Buy, sell and discover useful items from your campus community.</p>
+<button onclick="document.getElementById('sell').scrollIntoView({behavior:'smooth'})">＋ Sell an item</button>
+</section>
+
+<main>
+<h2>Explore Marketplace</h2>
+<p>Affordable essentials for students.</p>
+
+<div class="controls">
+<input id="search" placeholder="🔍 Search products..." oninput="render()">
+<select id="category" onchange="render()">
+<option>All</option><option>Books</option><option>Notes</option><option>Electronics</option><option>Other</option>
+</select>
+</div>
+
+<div id="products" class="grid">Loading products...</div>
+
+<section id="sell" class="card" style="margin-top:30px">
+<h2>＋ List a Product</h2>
+<form id="productForm">
+<input id="name" placeholder="Product name" required>
+<input id="price" type="number" min="1" placeholder="Price in ₹" required>
+<select id="type"><option>Books</option><option>Notes</option><option>Electronics</option><option>Other</option></select>
+<button type="submit">Publish Listing</button>
+</form>
+<p id="message" class="status"></p>
+</section>
+
+<section class="card" style="margin-top:22px">
+<h2>🛡️ Secure Exchange Demo</h2>
+<p>Reservations are simulations only. No real payment is collected.</p>
+<div id="orders">No reservations yet.</div>
+</section>
+</main>
+
+<footer>CampusLoop © 2026 · Built for campus communities</footer>
+
+<script>
+let products=[];
+let orders=[];
+
+async function render(){
+ try{
+  const response=await fetch('/api/products');
+  if(!response.ok) throw new Error();
+  products=await response.json();
+ }catch(e){
+  document.getElementById('products').innerHTML=
+   '<p>Unable to load products. Please check that the Java server is running.</p>';
+  return;
+ }
+
+ const q=document.getElementById('search').value.toLowerCase();
+ const cat=document.getElementById('category').value;
+ const icons={Books:'📚',Notes:'📝',Electronics:'🎧',Other:'🎒'};
+
+ const list=products.filter(p=>
+  String(p.name).toLowerCase().includes(q)&&
+  (cat==='All'||p.category===cat)
+ );
+
+ document.getElementById('products').innerHTML=list.map(p=>`
+  <article class="card">
+   <div class="icon">${icons[p.category]||'🎒'}</div>
+   <p><span class="tag">${p.category}</span></p>
+   <h3>${escapeHtml(p.name)}</h3>
+   <p class="price">₹${p.price}</p>
+   <button onclick="reserve('${escapeHtml(p.name)}',${p.price})">Reserve Item</button>
+  </article>`).join('')||'<p>No matching products found.</p>';
+}
+
+function escapeHtml(s){
+ return String(s).replace(/[&<>"']/g,c=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+ }[c]));
+}
+
+document.getElementById('productForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const item={
+  name:document.getElementById('name').value.trim(),
+  price:Number(document.getElementById('price').value),
+  category:document.getElementById('type').value
+ };
+ try{
+  const r=await fetch('/api/products',{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(item)
+  });
+  if(!r.ok) throw new Error();
+  document.getElementById('message').textContent='Listing published!';
+  e.target.reset();
+  render();
+ }catch(err){
+  document.getElementById('message').textContent='Could not publish. Is the Java server running?';
+ }
+});
+
+function reserve(name,price){
+ orders.push({name,price,status:'Reserved — demo only'});
+ document.getElementById('orders').innerHTML=orders.map((o,i)=>`
+  <p><b>${escapeHtml(o.name)}</b> · ₹${o.price}<br>
+  ${o.status} <button onclick="complete(${i})">Confirm Handover</button></p>
+ `).join('');
+ alert('Demo reservation created. No payment was made.');
+}
+
+function complete(i){
+ orders[i].status='Handover completed — demo';
+ document.getElementById('orders').innerHTML=orders.map((o,j)=>`
+  <p><b>${escapeHtml(o.name)}</b> · ₹${o.price}<br>${o.status}
+  ${o.status.startsWith('Reserved')?`<button onclick="complete(${j})">Confirm Handover</button>`:''}</p>
+ `).join('');
+}
+
+render();
+</script>
+</body>
+</html>
